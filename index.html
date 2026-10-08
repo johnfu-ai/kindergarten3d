@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>阳光幼儿园 · Sunshine Kindergarten | 实时3D幼儿园 Demo</title>
+<style>
+  :root{
+    --ink:#4a3b52; --paper:rgba(255,255,255,.92);
+    --coral:#ff8a72; --teal:#4ecdc4; --sun:#ffd166; --sky:#8fd3ff; --mint:#a8e6cf;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#cfeaff;
+    font-family:"Comic Sans MS","Chalkboard SE","Microsoft YaHei","PingFang SC",sans-serif;
+    color:var(--ink);user-select:none;-webkit-user-select:none}
+  #app{position:fixed;inset:0}
+  #app canvas{display:block;touch-action:none;cursor:grab}
+  #app canvas.dragging{cursor:grabbing}
+  #app canvas.hovering{cursor:pointer}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .8s ease .2s;z-index:5}
+  #hud.on{opacity:1}
+  .card{background:var(--paper);border-radius:18px;box-shadow:0 6px 24px rgba(90,60,110,.16);
+    backdrop-filter:blur(6px);border:2px solid rgba(255,255,255,.85)}
+
+  #title{position:absolute;top:14px;left:14px;padding:10px 18px 11px;display:flex;align-items:center;gap:10px;pointer-events:auto}
+  #title .sun-logo{width:34px;height:34px;border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#ffe9a8,#ffc94d 60%,#ffb01f);
+    box-shadow:0 0 0 6px rgba(255,209,102,.25);animation:pulse 3s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(255,209,102,.12)}}
+  #title h1{font-size:17px;letter-spacing:.5px}
+  #title small{display:block;font-size:11px;color:#9b8aa6;font-weight:normal;margin-top:1px;letter-spacing:.3px}
+
+  #actions{position:absolute;top:14px;right:14px;display:flex;gap:8px;pointer-events:auto}
+  .btn{border:none;cursor:pointer;padding:10px 16px;border-radius:999px;font-family:inherit;
+    font-size:13.5px;font-weight:bold;color:#fff;background:linear-gradient(180deg,#9d8df1,#7c6ce0);
+    box-shadow:0 4px 14px rgba(124,108,224,.4);transition:transform .15s,box-shadow .15s;white-space:nowrap}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 7px 18px rgba(124,108,224,.5)}
+  .btn:active{transform:translateY(0)}
+  .btn.secondary{background:linear-gradient(180deg,#ffb199,#ff8a72);box-shadow:0 4px 14px rgba(255,138,114,.4)}
+  .btn.active{background:linear-gradient(180deg,#5ee2d6,#2ec4b6);box-shadow:0 4px 16px rgba(46,196,182,.5)}
+
+  #areas{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:7px;
+    padding:8px;pointer-events:auto;flex-wrap:wrap;justify-content:center;max-width:min(96vw,760px)}
+  .chip{border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:bold;color:#6b5b77;
+    background:#fff;border-radius:999px;padding:9px 14px;transition:all .15s;box-shadow:0 2px 8px rgba(90,60,110,.10)}
+  .chip:hover{background:#fff3d6;transform:translateY(-2px)}
+  .chip.active{background:linear-gradient(180deg,#ffe29a,#ffd166);color:#8a5a00;box-shadow:0 3px 10px rgba(255,209,102,.5)}
+
+  #hint{position:absolute;left:14px;bottom:16px;padding:9px 14px;font-size:12.5px;color:#7a6b86;
+    display:flex;gap:14px;align-items:center}
+  #hint b{color:#5b4b67}
+
+  #fps{position:absolute;right:14px;bottom:16px;padding:7px 12px;font-size:12px;color:#5b7a6b;font-weight:bold}
+
+  /* ---------- 悬浮标签 ---------- */
+  #label{position:fixed;z-index:9;pointer-events:none;opacity:0;transform:translate(-50%,-118%);
+    transition:opacity .12s;padding:8px 13px;border-radius:14px;background:var(--paper);
+    box-shadow:0 6px 20px rgba(90,60,110,.22);border:2px solid #fff;text-align:center;white-space:nowrap}
+  #label.on{opacity:1}
+  #label .who{font-size:14px;font-weight:bold}
+  #label .what{font-size:11.5px;color:#8a7a96;margin-top:2px}
+  #label .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px}
+
+  /* ---------- 加载页 ---------- */
+  #loading{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:26px;background:linear-gradient(180deg,#aee3ff 0%,#e3f6ff 55%,#d2f2df 100%);
+    transition:opacity .7s ease;font-family:inherit}
+  #loading.hide{opacity:0;pointer-events:none}
+  .loader-scene{display:flex;align-items:flex-end;gap:14px;height:110px}
+  .loader-b{width:34px;border-radius:8px 8px 4px 4px;animation:bop 1.4s ease-in-out infinite}
+  .loader-b:nth-child(1){height:64px;background:#ffb3a7;animation-delay:0s}
+  .loader-b:nth-child(2){height:92px;background:#ffd166;animation-delay:.18s}
+  .loader-b:nth-child(3){height:110px;background:#8fd3ff;animation-delay:.36s}
+  .loader-b:nth-child(4){height:84px;background:#a8e6cf;animation-delay:.54s}
+  .loader-b:nth-child(5){height:56px;background:#d5a6e0;animation-delay:.72s}
+  .loader-b i{display:block;width:14px;height:16px;margin:12px auto 0;border-radius:3px;background:rgba(255,255,255,.85)}
+  @keyframes bop{50%{transform:translateY(-14px)}}
+  .loader-sun{position:absolute;top:9%;right:12%;width:74px;height:74px;border-radius:50%;
+    background:radial-gradient(circle at 38% 35%,#fff3c4,#ffd166 55%,#ffb01f);
+    box-shadow:0 0 60px 22px rgba(255,215,120,.55);animation:spinSun 18s linear infinite}
+  @keyframes spinSun{to{transform:rotate(360deg)}}
+  #load-title{font-size:26px;font-weight:bold;color:#4a3b52;letter-spacing:2px}
+  #load-title span{color:#ff8a72}
+  #load-sub{font-size:13px;color:#7d94a8;margin-top:-16px;letter-spacing:1px}
+  #bar-wrap{width:min(320px,70vw);height:14px;border-radius:999px;background:rgba(255,255,255,.7);
+    overflow:hidden;box-shadow:inset 0 2px 5px rgba(120,90,140,.15)}
+  #bar{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#ffd166,#ff8a72,#4ecdc4);
+    transition:width .25s ease}
+  #load-tip{font-size:12.5px;color:#8a9bb0}
+
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;
+    background:radial-gradient(ellipse at center,transparent 62%,rgba(120,90,140,.14) 100%)}
+
+  @media (max-width:760px){
+    #hint{display:none}
+    #title h1{font-size:14px}
+    .btn{padding:9px 12px;font-size:12px}
+    .chip{padding:8px 11px;font-size:12px}
+    #areas{bottom:10px;gap:5px;padding:6px}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="title" class="card">
+    <div class="sun-logo"></div>
+    <div><h1>阳光幼儿园</h1><small>Sunshine Kindergarten · 实时3D微缩场景</small></div>
+  </div>
+
+  <div id="actions">
+    <button id="btn-tour" class="btn">🎬 自动漫游</button>
+    <button id="btn-home" class="btn secondary">🏠 返回全景</button>
+  </div>
+
+  <div id="areas" class="card">
+    <button class="chip" data-area="panorama">🌍 全景</button>
+    <button class="chip" data-area="sports">⚽ 操场</button>
+    <button class="chip" data-area="play">🎠 游乐区</button>
+    <button class="chip" data-area="classroom">📚 教室</button>
+    <button class="chip" data-area="reading">📖 阅读区</button>
+    <button class="chip" data-area="nap">😴 午休区</button>
+  </div>
+
+  <div id="hint" class="card">
+    <span>🖱️ <b>拖拽</b> 旋转</span><span>⚙️ <b>滚轮</b> 缩放</span><span>👆 <b>点击</b> 区域 / 人物聚焦</span>
+  </div>
+
+  <div id="fps" class="card">FPS --</div>
+</div>
+
+<div id="label"><div class="who"></div><div class="what"></div></div>
+
+<div id="loading">
+  <div class="loader-sun"></div>
+  <div class="loader-scene">
+    <div class="loader-b"><i></i></div><div class="loader-b"><i></i></div>
+    <div class="loader-b"><i></i></div><div class="loader-b"><i></i></div><div class="loader-b"><i></i></div>
+  </div>
+  <div id="load-title">阳光<span>幼儿园</span></div>
+  <div id="load-sub">SUNSHINE KINDERGARTEN</div>
+  <div id="bar-wrap"><div id="bar"></div></div>
+  <div id="load-tip">正在搭建迷你幼儿园…</div>
+</div>
+
+<script>
+// 全局错误收集（调试用）
+window.__pageErrors = [];
+window.addEventListener('error', e => {
+  window.__pageErrors.push(`${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`);
+});
+window.addEventListener('unhandledrejection', e => {
+  const r = e.reason;
+  window.__pageErrors.push('REJECT: ' + (r && r.stack ? r.stack.split('\n').slice(0,3).join(' | ') : String(r)));
+});
+</script>
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
